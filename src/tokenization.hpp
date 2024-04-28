@@ -7,7 +7,12 @@
 enum class TokenType {
     exit,
     int_lit,
-    semi
+    semi,
+    open_paren,
+    close_paren,
+    ident,
+    def,
+    eq
 };
 
 // create token definition
@@ -35,16 +40,22 @@ public:
                 // consume first alpha
                 buf.push_back(consume());
 
-                // while alnum we keep looking
+                // while ,alphanumeric we keep looking
                 while (peak().has_value() && std::isalnum(peak().value())) {
                     buf.push_back(consume());
                 }
 
+                // keyword check
                 if (buf == "exit") {
                     tokens.push_back({.type = TokenType::exit});
                     buf.clear(); // clear current token buffer
+                } else if (buf == "def") {
+                    tokens.push_back({.type = TokenType::def});
+                    buf.clear();
                 } else {
-                    std::cerr << "Mess Up!" << std::endl;
+                    // instead of err, if not keyword -> create identifier
+                   tokens.push_back({.type = TokenType::ident, .value = buf});
+                   buf.clear();
                 }
             } else if (std::isdigit(peak().value())) {
                 buf.push_back(consume());
@@ -55,9 +66,18 @@ public:
 
                 tokens.push_back({.type = TokenType::int_lit, .value = buf});
                 buf.clear();
+            } else if (peak().value() == '(') {
+                consume();
+                tokens.push_back({.type = TokenType::open_paren});
+            } else if (peak().value() == ')') {
+                consume();
+                tokens.push_back({.type = TokenType::close_paren});
             } else if (peak().value() == ';') {
                 consume(); // consume even if value is insignificant
                 tokens.push_back({.type = TokenType::semi});
+            } else if (peak().value() == '=') {
+                consume();
+                tokens.push_back({.type = TokenType::eq});
             } else if (std::isspace(peak().value())) {
                 consume();
                 continue;
@@ -75,12 +95,12 @@ public:
 private:
 
     // peek ahead optional for the case where char is eof
-    [[nodiscard]] inline std::optional<char> peak(int ahead = 1) const {
+    [[nodiscard]] inline std::optional<char> peak(int offset = 0) const {
         // peak ahead to make sure there is no eof
-        if (m_index + ahead > m_src.length()) {
+        if (m_index + offset >= m_src.length()) {
             return {};
         } else {
-            return m_src.at(m_index);
+            return m_src.at(m_index + offset);
         }
     }
 
