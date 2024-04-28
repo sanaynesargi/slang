@@ -5,32 +5,9 @@
 #include <vector>
 
 #include "./tokenization.hpp"
+#include "./parser.hpp"
+#include "./generation.hpp"
 
-// temporary function to covert tokens to assembly
-std::string tokens_to_asm(const std::vector<Token>& tokens) {
-    std::stringstream output;
-
-    output << "global _start\n_start:\n"; // add starting template assembly
-
-    for (int i = 0; i < tokens.size(); i++) {
-        const Token& token = tokens.at(i);
-
-        // check if after a exit value is an int_lit followed by a semi
-        // this is the test syntax we have in the file currently
-        if (token.type == TokenType::exit) {
-            if (i + 1 < tokens.size() && tokens.at(i + 1).type == TokenType::int_lit) {
-                if (i + 2 < tokens.size() && tokens.at(i + 2).type == TokenType::semi) {
-                    // x86 assembly for the syscall exit (to exit from a program)
-                    output << "    mov rax, 60\n";
-                    output << "    mov rdi, " << tokens.at(i + 1).value.value() << "\n"; // int literal;
-                    output << "    syscall";
-                }
-            }
-        }
-    }
-
-    return output.str(); // return string from stream
-}
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -52,10 +29,20 @@ int main(int argc, char* argv[]) {
     Tokenizer tokenizer(std::move(contents)); // move contents into tokenizer
     std::vector<Token> tokens = tokenizer.tokenize();
 
+    Parser parser(std::move(tokens));
+    std::optional<NodeExit> tree = parser.parse();
+
+    if (!tree.has_value()) {
+        std::cerr << "No exit statement found" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    Generator generator(tree.value());
+
     // create scope for automatic file closing
     {
         std::fstream file("out.asm", std::ios::out);
-        file << tokens_to_asm(tokens); // stream assembly into output file
+        file << generator.generate(); // stream assembly into output file
     }
 
     // assemble and link the compiled code

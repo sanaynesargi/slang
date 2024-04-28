@@ -75,7 +75,7 @@ public:
 private:
 
     // peek ahead optional for the case where char is eof
-    [[nodiscard]] std::optional<char> peak(int ahead = 1) const {
+    [[nodiscard]] inline std::optional<char> peak(int ahead = 1) const {
         // peak ahead to make sure there is no eof
         if (m_index + ahead > m_src.length()) {
             return {};
@@ -84,10 +84,10 @@ private:
         }
     }
 
-    char consume () {
+    inline char consume () {
         return m_src.at(m_index++);
     }
 
     const std::string m_src;
-    int m_index{};
+    size_t m_index{};
 };
