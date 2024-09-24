@@ -3,6 +3,7 @@
 #include <sstream>
 #include <optional>
 #include <vector>
+#include <cassert>
 
 #include "./tokenization.hpp"
 #include "./parser.hpp"

@@ -1,0 +1,3 @@
+/home/sanay/CLionProjects/slang/cmake-build-debug/CMakeFiles/sl.dir
+/home/sanay/CLionProjects/slang/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/sanay/CLionProjects/slang/cmake-build-debug/CMakeFiles/rebuild_cache.dir

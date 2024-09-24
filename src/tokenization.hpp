@@ -12,7 +12,8 @@ enum class TokenType {
     close_paren,
     ident,
     def,
-    eq
+    eq,
+    plus
 };
 
 // create token definition
@@ -78,6 +79,10 @@ public:
             } else if (peak().value() == '=') {
                 consume();
                 tokens.push_back({.type = TokenType::eq});
+            } else if (peak().value() == '+') {
+                consume();
+                tokens.push_back({.type = TokenType::plus});
+                continue;
             } else if (std::isspace(peak().value())) {
                 consume();
                 continue;
