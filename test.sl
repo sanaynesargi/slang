@@ -1,3 +1,3 @@
-def x = 107;
+def x = 1 + 2;
 def y = 9;
 exit(x);

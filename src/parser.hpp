@@ -10,11 +10,11 @@
 // var stands for "variant" as in variable of global type to more specific type
 // type in this context represents production (grammar)
 
-struct NodeExprIntLit {
+struct NodeTermIntLit {
     Token int_lit;
 };
 
-struct NodeExprIdent {
+struct NodeTermIdent {
     Token ident;
 };
 
@@ -34,8 +34,14 @@ struct NodeBinExpr {
     std::variant<NodeBinExprAdd*, NodeBinExprMult*> var;
 };
 
+// term to hold either in int lit or an identifier
+// to allow for handing of binary expressions
+struct NodeTerm {
+    std::variant<NodeTermIntLit*, NodeTermIdent*> var;
+};
+
 struct NodeExpr {
-    std::variant<NodeExprIntLit*, NodeExprIdent*, NodeBinExpr*> var;
+    std::variant<NodeTerm*, NodeBinExpr*> var;
 };
 
 struct NodeStmtExit {
@@ -65,29 +71,27 @@ public:
 
     std::optional<NodeBinExpr*> parse_bin_expr() {
         if (auto lhs = parse_expr()) {
-            // parse left hand side
-            auto bin_expr = m_allocator.alloc<NodeBinExpr>();
 
-            // determine type of binary expression (e.g. addition vs multiplication)
-            if (peak().has_value() && peak().value().type == TokenType::plus) {
-                auto bin_expr_add = m_allocator.alloc<NodeBinExprAdd>();
-                bin_expr_add->lhs = lhs.value(); // set left hand side
-                consume(); // consume plus token
+        } else {
+            return {};
+        }
+    }
 
-                // same for the right side
-                if (auto rhs = parse_expr()) {
-                    bin_expr_add->rhs = rhs.value();
-                    bin_expr->var = bin_expr_add;
-                    return bin_expr;
-                } else {
-                    std::cerr << "Expected Expression" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-            } else {
-                // temporary error message to represent multiplication
-                std::cerr << "Unsupported Binary Operator" << std::endl;
-                exit(EXIT_FAILURE);
-            }
+    // parse each term (e.g. int literal or identifier)
+    std::optional<NodeTerm*> parse_term() {
+        if (peak().has_value() && peak().value().type == TokenType::int_lit) {
+            auto term_int_lit = m_allocator.alloc<NodeTermIntLit>(); // allocate int lit
+            term_int_lit->int_lit = consume(); // set int lit to consumed token
+            auto term = m_allocator.alloc<NodeTerm>(); // allocate expression
+            term->var = term_int_lit; // set expression var to int lit
+            return term;
+        } else if (peak().has_value() && peak().value().type == TokenType::ident) {
+            // same process as above for all token identifiers
+            auto term_ident = m_allocator.alloc<NodeTermIdent>();
+            term_ident->ident = consume();
+            auto term = m_allocator.alloc<NodeTerm>();
+            term->var = term_ident;
+            return term;
         } else {
             return {};
         }
@@ -95,27 +99,40 @@ public:
 
     // each production will be a method that returns an optional node described in the grammar
     std::optional<NodeExpr*> parse_expr() {
+        if (auto term = parse_term()) {
+            // check if next token is a binary operator
+            if (peak().has_value() && peak().value().type == TokenType::plus) {
+                // parse left hand side
+                auto bin_expr = m_allocator.alloc<NodeBinExpr>();
 
-        if (peak().has_value() && peak().value().type == TokenType::int_lit) {
-            auto expr_int_lit = m_allocator.alloc<NodeExprIntLit>(); // allocate int lit
-            expr_int_lit->int_lit = consume(); // set int lit to consumed token
-            auto expr = m_allocator.alloc<NodeExpr>(); // allocate expression
-            expr->var = expr_int_lit; // set expression var to int lit
-            return expr;
-        } else if (peak().has_value() && peak().value().type == TokenType::ident) {
-            // same process as above for all token identifiers
-            auto expr_ident = m_allocator.alloc<NodeExprIdent>();
-            expr_ident->ident = consume();
-            auto expr = m_allocator.alloc<NodeExpr>();
-            expr->var = expr_ident;
-            return expr;
-        } else if (auto bin_expr = parse_bin_expr()) {
-            // check if we can parse binary expression
-            auto expr = m_allocator.alloc<NodeExpr>();
-            expr->var = bin_expr.value();
-            return expr;
-        }
-        else {
+                // determine type of binary expression (e.g. addition vs multiplication)
+                auto bin_expr_add = m_allocator.alloc<NodeBinExprAdd>();
+
+                // create left hand side expression and add term to it
+                auto lhs_expr = m_allocator.alloc<NodeExpr>();
+                lhs_expr->var = term.value();
+                bin_expr_add->lhs = lhs_expr; // set left hand side expression to previous (convert from NodeBinExpr to NodeExpr)
+
+                consume(); // consume plus token
+
+                // same for the right side
+                if (auto rhs = parse_expr()) {
+                    bin_expr_add->rhs = rhs.value();
+                    bin_expr->var = bin_expr_add;
+                    auto expr = m_allocator.alloc<NodeExpr>();
+                    expr->var = bin_expr;
+                    return expr; // add binary expression to full expression with left side
+                } else {
+                    std::cerr << "Expected Expression" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            } else {
+                // if the expression is not a binary expression, just treat it as an ident or int lit
+                auto expr = m_allocator.alloc<NodeExpr>();
+                expr->var = term.value();
+                return expr;
+            }
+        } else {
             return {};
         }
     }

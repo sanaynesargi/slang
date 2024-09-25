@@ -12,25 +12,26 @@ public:
 
     }
 
-    void gen_expr(const NodeExpr* expr) {
-        // push value of expression to the top of the stack for later use
-        struct ExprVisitor {
+    // generate term
+    void gen_term(const NodeTerm* term) {
+        // define visitors with operators that allow them to take different types and generate different code
+        // terms can be int literals or identifiers and different asm is generated via std::visit
+        // std::visit determines type at runtime and calls the correct overload
+        struct TermVisitor {
             Generator* gen;
-            void operator()(const NodeExprIntLit* expr_int_lit) const {
-                gen->m_output << "    mov rax, " << expr_int_lit->int_lit.value.value() << "\n";
+            void operator()(const NodeTermIntLit* term_int_lit) const {
+                gen->m_output << "    mov rax, " << term_int_lit->int_lit.value.value() << "\n";
                 gen->push("rax");
             }
-            void operator()(const NodeExprIdent* expr_ident) const {
-                // extract value of variable and push value to the top of the stack for later access
-
+            void operator()(const NodeTermIdent* term_ident) const {
                 // check if identifier (e.g. var) is declared
-                if (!gen->m_vars.contains(expr_ident->ident.value.value())) {
-                    std::cerr << "Undeclared identifier: " << expr_ident->ident.value.value() << std::endl;
+                if (!gen->m_vars.contains(term_ident->ident.value.value())) {
+                    std::cerr << "Undeclared identifier: " << term_ident->ident.value.value() << std::endl;
                     exit(EXIT_FAILURE);
                 }
 
                 // get offset from stack pointer to read value and push onto stack
-                const auto &var = gen->m_vars.at(expr_ident->ident.value.value());
+                const auto &var = gen->m_vars.at(term_ident->ident.value.value());
                 std::stringstream offset;
 
                 // calculate offset by subtracting variable stack location from current stack location
@@ -38,6 +39,20 @@ public:
                 // subtract 1 because we don't need to move the stack pointer to get the current top of the stack
                 offset << "QWORD [rsp + " << (gen->m_stack_loc - var.stack_loc - 1) * 8 << "]\n";
                 gen->push(offset.str());
+            }
+        };
+
+        TermVisitor visitor({.gen = this});
+        std::visit(visitor, term->var);
+    }
+
+    // generate expression
+    void gen_expr(const NodeExpr* expr) {
+        // push value of expression to the top of the stack for later use
+        struct ExprVisitor {
+            Generator* gen;
+            void operator()(const NodeTerm* term) const {
+                gen->gen_term(term);
             }
             void operator()(const NodeBinExpr* bin_expr) const {
                 assert(false);  // not implemented
@@ -82,6 +97,7 @@ public:
         std::visit(visitor, stmt->var);
     }
 
+    // generate program
     [[nodiscard]] std::string gen_prog() {
         m_output << "global _start\n_start:\n"; // add starting template assembly
 
