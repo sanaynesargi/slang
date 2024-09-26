@@ -55,7 +55,15 @@ public:
                 gen->gen_term(term);
             }
             void operator()(const NodeBinExpr* bin_expr) const {
-                assert(false);  // not implemented
+                // push expressions for lhs and rhs to the top of the stack
+                gen->gen_expr(bin_expr->add->lhs);
+                gen->gen_expr(bin_expr->add->rhs);
+                // pop values (commutative no order required) into rax and rbx
+                gen->pop("rax");
+                gen->pop("rbx");
+                // use asm add instruction and push result into rax
+                gen->m_output << "    add rax, rbx\n";
+                gen->push("rax"); // variable to assign is at top of stack so push rax to the top
             }
         };
 

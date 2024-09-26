@@ -25,13 +25,14 @@ struct NodeBinExprAdd {
     NodeExpr* rhs{};
 };
 
-struct NodeBinExprMult {
-    NodeExpr* lhs;
-    NodeExpr* rhs;
-};
+//struct NodeBinExprMult {
+//    NodeExpr* lhs;
+//    NodeExpr* rhs;
+//};
 
 struct NodeBinExpr {
-    std::variant<NodeBinExprAdd*, NodeBinExprMult*> var;
+//    std::variant<NodeBinExprAdd*, NodeBinExprMult*> var;
+    NodeBinExprAdd* add;
 };
 
 // term to hold either in int lit or an identifier
@@ -118,7 +119,7 @@ public:
                 // same for the right side
                 if (auto rhs = parse_expr()) {
                     bin_expr_add->rhs = rhs.value();
-                    bin_expr->var = bin_expr_add;
+                    bin_expr->add = bin_expr_add;
                     auto expr = m_allocator.alloc<NodeExpr>();
                     expr->var = bin_expr;
                     return expr; // add binary expression to full expression with left side
