@@ -2,7 +2,7 @@ global _start
 _start:
     mov rax, 1
     push rax
-    mov rax, 1
+    mov rax, 5
     push rax
     pop rax
     pop rbx

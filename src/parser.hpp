@@ -70,26 +70,18 @@ public:
         m_allocator(1024 * 1024 * 4) // 4mb
     {}
 
-    std::optional<NodeBinExpr*> parse_bin_expr() {
-        if (auto lhs = parse_expr()) {
-
-        } else {
-            return {};
-        }
-    }
-
     // parse each term (e.g. int literal or identifier)
     std::optional<NodeTerm*> parse_term() {
-        if (peak().has_value() && peak().value().type == TokenType::int_lit) {
+        if (auto int_lit = try_consume(TokenType::int_lit)) {
             auto term_int_lit = m_allocator.alloc<NodeTermIntLit>(); // allocate int lit
-            term_int_lit->int_lit = consume(); // set int lit to consumed token
+            term_int_lit->int_lit = int_lit.value(); // set int lit to consumed token
             auto term = m_allocator.alloc<NodeTerm>(); // allocate expression
             term->var = term_int_lit; // set expression var to int lit
             return term;
-        } else if (peak().has_value() && peak().value().type == TokenType::ident) {
+        } else if (auto ident = try_consume(TokenType::ident)) {
             // same process as above for all token identifiers
             auto term_ident = m_allocator.alloc<NodeTermIdent>();
-            term_ident->ident = consume();
+            term_ident->ident = ident.value();
             auto term = m_allocator.alloc<NodeTerm>();
             term->var = term_ident;
             return term;
@@ -102,7 +94,7 @@ public:
     std::optional<NodeExpr*> parse_expr() {
         if (auto term = parse_term()) {
             // check if next token is a binary operator
-            if (peak().has_value() && peak().value().type == TokenType::plus) {
+            if (try_consume(TokenType::plus).has_value()) {
                 // parse left hand side
                 auto bin_expr = m_allocator.alloc<NodeBinExpr>();
 
@@ -114,7 +106,6 @@ public:
                 lhs_expr->var = term.value();
                 bin_expr_add->lhs = lhs_expr; // set left hand side expression to previous (convert from NodeBinExpr to NodeExpr)
 
-                consume(); // consume plus token
 
                 // same for the right side
                 if (auto rhs = parse_expr()) {
@@ -155,22 +146,12 @@ public:
                     exit(EXIT_FAILURE);
                 }
 
-                // check for (
-                if (peak().has_value() && peak().value().type == TokenType::close_paren) {
-                    consume();
-                } else {
-                    std::cerr << "Expected )" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                // verify semicolon is after
-                if (peak().has_value() && peak().value().type == TokenType::semi) {
-                    consume(); // consume semicolon
-                } else {
-                    std::cerr << "Expected ;" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+                // try to consume )
+                try_consume(TokenType::close_paren, "Expected ')'");
+                // verify semi is after
+                try_consume(TokenType::semi, "Expected ';'");
 
-                // allocate Node Statement and set it to exit type
+                             // allocate Node Statement and set it to exit type
                 auto stmt = m_allocator.alloc<NodeStmt>();
                 stmt->var = stmt_exit;
                 return stmt;
@@ -190,12 +171,7 @@ public:
                 }
 
                 // check for semicolon
-                if (peak().has_value() && peak().value().type == TokenType::semi) {
-                    consume();
-                } else {
-                    std::cerr << "Expected ;" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+                try_consume(TokenType::semi, "Expected ';'");
 
                 // same process as above
                 auto stmt = m_allocator.alloc<NodeStmt>();
@@ -238,7 +214,26 @@ private:
         return m_tokens.at(m_index++);
     }
 
-    const std::vector<Token> m_tokens;
+    // refactor the consume token error into its own function
+    inline Token try_consume(TokenType type, const std::string& err_msg) {
+        if (peak().has_value() && peak().value().type == type) {
+            return consume();
+        } else {
+            std::cerr << err_msg << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // overload function to return an optional type where no error is needed
+    inline std::optional<Token> try_consume(TokenType type) {
+        if (peak().has_value() && peak().value().type == type) {
+            return consume();
+        } else {
+            return {};
+        }
+    }
+
+        const std::vector<Token> m_tokens;
     size_t m_index = 0;
     ArenaAllocator m_allocator;
 };
