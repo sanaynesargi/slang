@@ -20,25 +20,40 @@ struct NodeTermIdent {
 
 struct NodeExpr;
 
+struct NodeTermParen {
+    NodeExpr* expr;
+};
+
+
 struct NodeBinExprAdd {
     NodeExpr* lhs{};
     NodeExpr* rhs{};
 };
 
-//struct NodeBinExprMult {
-//    NodeExpr* lhs;
-//    NodeExpr* rhs;
-//};
+struct NodeBinExprMult {
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+
+
+struct NodeBinExprSub {
+    NodeExpr* lhs{};
+    NodeExpr* rhs{};
+};
+
+struct NodeBinExprDiv {
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
 
 struct NodeBinExpr {
-//    std::variant<NodeBinExprAdd*, NodeBinExprMult*> var;
-    NodeBinExprAdd* add;
+    std::variant<NodeBinExprAdd*, NodeBinExprMult*, NodeBinExprSub*, NodeBinExprDiv*> var;
 };
 
 // term to hold either in int lit or an identifier
 // to allow for handing of binary expressions
 struct NodeTerm {
-    std::variant<NodeTermIntLit*, NodeTermIdent*> var;
+    std::variant<NodeTermIntLit*, NodeTermIdent*, NodeTermParen*> var;
 };
 
 struct NodeExpr {
@@ -70,7 +85,7 @@ public:
         m_allocator(1024 * 1024 * 4) // 4mb
     {}
 
-    // parse each term (e.g. int literal or identifier)
+    // parse each term (e.g. int literal or identifier or paren expr)
     std::optional<NodeTerm*> parse_term() {
         if (auto int_lit = try_consume(TokenType::int_lit)) {
             auto term_int_lit = m_allocator.alloc<NodeTermIntLit>(); // allocate int lit
@@ -85,13 +100,118 @@ public:
             auto term = m_allocator.alloc<NodeTerm>();
             term->var = term_ident;
             return term;
+        } else if (auto open_paren = try_consume(TokenType::open_paren)) {
+            // handle the case of paren by setting resetting prec level inside paren
+            auto expr = parse_expr(); // -> this parses the expr (giving the above effect)
+            if (!expr.has_value()) {
+                std::cerr << "Expected expression" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            // consume close paren
+            try_consume(TokenType::close_paren, "Expected `)`");
+
+            // allocate for paren expr
+            auto term_paren = m_allocator.alloc<NodeTermParen>();
+            term_paren->expr = expr.value();
+
+            // allocate term to store paren expr
+            auto term = m_allocator.alloc<NodeTerm>();
+            term->var = term_paren;
+
+            return term; // return the term
         } else {
             return {};
         }
     }
 
     // each production will be a method that returns an optional node described in the grammar
-    std::optional<NodeExpr*> parse_expr() {
+    std::optional<NodeExpr*> parse_expr(int min_prec = 0) {
+        std::optional<NodeTerm*> term_lhs = parse_term(); // obtain left hand side term
+
+        if (!term_lhs.has_value()) {
+            return {}; // cannot parse expr
+        }
+
+        // create lhs expression
+        auto expr_lhs = m_allocator.alloc<NodeExpr>();
+        expr_lhs->var = term_lhs.value(); // add lhs (term) to it
+
+        // implement precedence climbing
+        // https://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
+        while (true) {
+            std::optional<Token> curr_token = peak();
+            std::optional<int> prec;
+
+            if (curr_token.has_value()) {
+                prec = bin_prec(curr_token->type);
+
+                // break if no precedence level OR precedence less than minimum
+                if (!prec.has_value() || prec < min_prec) {
+                    break;
+                }
+            } else {
+                // break if no current token
+                break;
+            }
+
+            // assume all operations to be left-associative
+            // (2 + 3) + 4 = 2 + 3 + 4
+            Token op = consume(); // consume operator
+            int next_min_prec = prec.value() + 1;
+            auto expr_rhs = parse_expr(next_min_prec); // compute rhs recursively
+
+            if (!expr_rhs.has_value()) {
+                std::cerr << "Unable to parse expression" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            auto expr = m_allocator.alloc<NodeBinExpr>(); // create full expression (lhs and rhs)
+
+            // copy of lhs to prevent a pointer loop
+            auto expr_lhs2 = m_allocator.alloc<NodeExpr>();
+
+            if (op.type == TokenType::plus) {
+                auto add = m_allocator.alloc<NodeBinExprAdd>();
+                expr_lhs2->var = expr_lhs->var;
+                // then use the created expression in the main expr
+                add->lhs = expr_lhs2;
+                add->rhs = expr_rhs.value();
+                expr->var = add;
+            } else if (op.type == TokenType::star) {
+                // same process as above
+                auto mult = m_allocator.alloc<NodeBinExprMult>();
+                expr_lhs2->var = expr_lhs->var;
+                mult->lhs = expr_lhs2;
+                mult->rhs = expr_rhs.value();
+                expr->var = mult;
+            } else if (op.type == TokenType::sub) {
+                auto sub = m_allocator.alloc<NodeBinExprSub>();
+                expr_lhs2->var = expr_lhs->var;
+                // then use the created expression in the main expr
+                sub->lhs = expr_lhs2;
+                sub->rhs = expr_rhs.value();
+                expr->var = sub;
+            } else if (op.type == TokenType::div) {
+                // same process as above
+                auto div = m_allocator.alloc<NodeBinExprDiv>();
+                expr_lhs2->var = expr_lhs->var;
+                div->lhs = expr_lhs2;
+                div->rhs = expr_rhs.value();
+                expr->var = div;
+            } else {
+                assert(false);
+            }
+
+
+            // previously lhs was a term, but now it can become an expression
+            // 1 + 2
+            // (1) -> lhs (+) (2) -> rhs
+            // (1 + 2) -> lhs _____ potential other expr
+            expr_lhs->var = expr;
+        }
+
+        return expr_lhs;
+
         if (auto term = parse_term()) {
             // check if next token is a binary operator
             if (try_consume(TokenType::plus).has_value()) {
@@ -110,7 +230,7 @@ public:
                 // same for the right side
                 if (auto rhs = parse_expr()) {
                     bin_expr_add->rhs = rhs.value();
-                    bin_expr->add = bin_expr_add;
+                    bin_expr->var = bin_expr_add;
                     auto expr = m_allocator.alloc<NodeExpr>();
                     expr->var = bin_expr;
                     return expr; // add binary expression to full expression with left side

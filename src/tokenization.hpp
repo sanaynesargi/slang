@@ -13,7 +13,10 @@ enum class TokenType {
     ident,
     def,
     eq,
-    plus
+    plus,
+    star,
+    sub,
+    div,
 };
 
 // create token definition
@@ -21,6 +24,21 @@ struct Token {
     TokenType type;
     std::optional<std::string> value {}; // optional value (e.g. 5 for int_lit)
 };
+
+
+// helper func to determine operator precedence
+std::optional<int> bin_prec(TokenType type) {
+    switch (type) {
+        case TokenType::sub:
+        case TokenType::plus:
+            return 0;
+        case TokenType::div:
+        case TokenType::star:
+            return 1;
+        default:
+            return {}; // if type not an operator
+    }
+}
 
 
 class Tokenizer {
@@ -82,7 +100,15 @@ public:
             } else if (peak().value() == '+') {
                 consume();
                 tokens.push_back({.type = TokenType::plus});
-                continue;
+            } else if (peak().value() == '*') {
+                consume();
+                tokens.push_back({.type = TokenType::star});
+            } else if (peak().value() == '-') {
+                consume();
+                tokens.push_back({.type = TokenType::sub});
+            } else if (peak().value() == '/') {
+                consume();
+                tokens.push_back({.type = TokenType::div});
             } else if (std::isspace(peak().value())) {
                 consume();
                 continue;

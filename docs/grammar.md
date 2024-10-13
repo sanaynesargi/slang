@@ -19,14 +19,21 @@ $$
     [\text{Expr}] * [\text{Expr}]
     & \text{prec} = 1
     \\
+    [\text{Expr}] / [\text{Expr}]
+    & \text{prec} = 1
+    \\
     [\text{Expr}] + [\text{Expr}]
+    & \text{prec} = 0
+    \\
+    [\text{Expr}] - [\text{Expr}]
     & \text{prec} = 0
     \\
 \end{cases} \\
 [\text{Term}] &\to
 \begin{cases}
     \text{int\_lit} \\
-    \text{ident}
+    \text{ident} \\
+    (\text{[Expr]})
 \end{cases}
 \end{align}
 $$

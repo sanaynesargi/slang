@@ -40,10 +40,69 @@ public:
                 offset << "QWORD [rsp + " << (gen->m_stack_loc - var.stack_loc - 1) * 8 << "]\n";
                 gen->push(offset.str());
             }
+            void operator()(const NodeTermParen* term_paren) const {
+                gen->gen_expr(term_paren->expr);
+            }
         };
 
         TermVisitor visitor({.gen = this});
         std::visit(visitor, term->var);
+    }
+
+    void gen_bin_expr(const NodeBinExpr* bin_expr) {
+        // same principle - use std::visit to create visitors and call diff
+        // functions based on type of bin expr
+
+        struct BinExprVisitor {
+            Generator* gen;
+            void operator()(const NodeBinExprSub* sub) const {
+                // push expressions for lhs and rhs to the top of the stack
+                gen->gen_expr(sub->rhs);
+                gen->gen_expr(sub->lhs);
+                // pop values (commutative no order required) into rax and rbx
+                gen->pop("rax");
+                gen->pop("rbx");
+                // use asm sub instruction and push result into rax
+                gen->m_output << "    sub rax, rbx\n";
+                gen->push("rax"); // variable to assign is at top of stack so push rax to the top
+            }
+            void operator()(const NodeBinExprDiv* div) const {
+                // push expressions for lhs and rhs to the top of the stack
+                gen->gen_expr(div->rhs);
+                gen->gen_expr(div->lhs);
+                // pop values (commutative no order required) into rax and rbx
+                gen->pop("rax");
+                gen->pop("rbx");
+                // use asm div instruction and push result into rax
+                gen->m_output << "    div rbx\n"; // mult multiplies specified register with rax and stores in rax
+                gen->push("rax"); // variable to assign is at top of stack so push rax to the top
+            }
+            void operator()(const NodeBinExprAdd* add) const {
+                // push expressions for lhs and rhs to the top of the stack
+                gen->gen_expr(add->rhs);
+                gen->gen_expr(add->lhs);
+                // pop values (commutative no order required) into rax and rbx
+                gen->pop("rax");
+                gen->pop("rbx");
+                // use asm add instruction and push result into rax
+                gen->m_output << "    add rax, rbx\n";
+                gen->push("rax"); // variable to assign is at top of stack so push rax to the top
+            }
+            void operator()(const NodeBinExprMult* mult) const {
+                // push expressions for lhs and rhs to the top of the stack
+                gen->gen_expr(mult->rhs);
+                gen->gen_expr(mult->lhs);
+                // pop values (commutative no order required) into rax and rbx
+                gen->pop("rax");
+                gen->pop("rbx");
+                // use asm mult instruction and push result into rax
+                gen->m_output << "    mul rbx\n"; // mult multiplies specified register with rax and stores in rax
+                gen->push("rax"); // variable to assign is at top of stack so push rax to the top
+            }
+        };
+
+        BinExprVisitor visitor{ .gen = this};
+        std::visit(visitor, bin_expr->var);
     }
 
     // generate expression
@@ -55,15 +114,7 @@ public:
                 gen->gen_term(term);
             }
             void operator()(const NodeBinExpr* bin_expr) const {
-                // push expressions for lhs and rhs to the top of the stack
-                gen->gen_expr(bin_expr->add->lhs);
-                gen->gen_expr(bin_expr->add->rhs);
-                // pop values (commutative no order required) into rax and rbx
-                gen->pop("rax");
-                gen->pop("rbx");
-                // use asm add instruction and push result into rax
-                gen->m_output << "    add rax, rbx\n";
-                gen->push("rax"); // variable to assign is at top of stack so push rax to the top
+                gen->gen_bin_expr(bin_expr);
             }
         };
 
