@@ -14,6 +14,9 @@ _start:
     pop rbx
     sub rax, rbx
     push rax
+    mov rax, 2
+    push rax
+    add rsp, 8
     mov rax, 5
     push rax
     push QWORD [rsp + 8]

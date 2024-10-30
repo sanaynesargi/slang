@@ -17,6 +17,9 @@ enum class TokenType {
     star,
     sub,
     div,
+    open_curly,
+    close_curly,
+    if_,
 };
 
 // create token definition
@@ -71,6 +74,9 @@ public:
                 } else if (buf == "def") {
                     tokens.push_back({.type = TokenType::def});
                     buf.clear();
+                } else if (buf == "if") {
+                    tokens.push_back({.type = TokenType::if_});
+                    buf.clear();
                 } else {
                     // instead of err, if not keyword -> create identifier
                    tokens.push_back({.type = TokenType::ident, .value = buf});
@@ -109,7 +115,13 @@ public:
             } else if (peak().value() == '/') {
                 consume();
                 tokens.push_back({.type = TokenType::div});
-            } else if (std::isspace(peak().value())) {
+            } else if (peak().value() == '{') {
+                consume();
+                tokens.push_back({.type = TokenType::open_curly});
+            } else if (peak().value() == '}') {
+                consume();
+                tokens.push_back({.type = TokenType::close_curly});
+            }  else if (std::isspace(peak().value())) {
                 consume();
                 continue;
             } else {

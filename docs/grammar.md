@@ -4,9 +4,11 @@ $$
 \\
 [\text{Stmt}] &\to
 \begin{cases}
-    \text{Exit}([\text{Expr}]); \\
+\text{exit}([\text{Expr}]); \\
     \text{def}\space\text{ident} =
-    [\text{Expr}];
+    [\text{Expr}]; \\
+    \text{if} ([\text{Expr}]) \\
+    \{[\text{Stmt}^*]\} \\
 \end{cases}
 \\
 [\text{Expr}] &\to

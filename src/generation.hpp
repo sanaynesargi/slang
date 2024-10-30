@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_map>
+#include <map>
 
 // class for code generation to take parse tree and convert to asm
 // replaces tokens_to_asm
@@ -25,13 +25,22 @@ public:
             }
             void operator()(const NodeTermIdent* term_ident) const {
                 // check if identifier (e.g. var) is declared
-                if (!gen->m_vars.contains(term_ident->ident.value.value())) {
+                // find if takes two iterators, the start and the end of the vector
+                // the lambda function matches the name of the iterated var to the current term
+                // if there is nothing found (iterator reaches end) then return an error (no match found)
+                auto it = std::find_if(
+                        gen->m_vars.cbegin(),
+                        gen->m_vars.cend(),
+                        [&](const Var& var){return var.name == term_ident->ident.value.value();}
+                        );
+
+                if (it == gen->m_vars.cend()) {
                     std::cerr << "Undeclared identifier: " << term_ident->ident.value.value() << std::endl;
                     exit(EXIT_FAILURE);
                 }
 
                 // get offset from stack pointer to read value and push onto stack
-                const auto &var = gen->m_vars.at(term_ident->ident.value.value());
+                const auto &var = (*it); // de-reference iterator as that is the matched value
                 std::stringstream offset;
 
                 // calculate offset by subtracting variable stack location from current stack location
@@ -136,19 +145,34 @@ public:
             }
             void operator()(const NodeStmtDef* stmt_def) const {
                 // variable assembly generation
+                auto it = std::find_if(
+                        gen->m_vars.cbegin(),
+                        gen->m_vars.cend(),
+                        [&](const Var& var){return var.name == stmt_def->ident.value.value();}
+                );
 
-                // check if variable has been declared
-                if (gen->m_vars.contains(stmt_def->ident.value.value())) {
+                // check if variable has been declared (does not equal the end)
+                if (it != gen->m_vars.cend()) {
                     std::cerr << "Identifier already used: " << stmt_def->ident.value.value() << std::endl;
-                    exit(EXIT_FAILURE);
+                exit(EXIT_FAILURE);
                 }
 
                 // insert declaration into map, stack position is current stack position
-                gen->m_vars.insert({stmt_def->ident.value.value(), Var{.stack_loc = gen -> m_stack_loc}});
+                gen->m_vars.push_back({.name = stmt_def->ident.value.value(), .stack_loc = gen -> m_stack_loc});
                 gen->gen_expr(stmt_def->expr); // push expression value to the top of the stack
             }
-            void operator()(const NodeStmt* stmt_def) const {
-                assert(false);  // not implemented
+            void operator()(const NodeScope* scope) const {
+                gen->begin_scope();
+
+                for (const NodeStmt* stmt : scope->stmts) {
+                    gen->gen_stmt(stmt);
+                }
+
+                gen->end_scope();
+            }
+            void operator()(const NodeStmtIf* stmt_if) const {
+                // handle if statement
+                assert(false && "Not Implemented");
             }
         };
 
@@ -184,12 +208,34 @@ private:
         m_stack_loc--;
     }
 
+    void begin_scope() {
+        // we mark the start of a scope by the current length of m_vars
+        // everything above this on the stack will be part of this scope
+        m_scopes.push_back(m_vars.size());
+    }
+
+    void end_scope() {
+        // pop all variables until we reach the previous begin_scope (in m_scopes)
+        size_t pop_count = m_vars.size() - m_scopes.back();
+        m_output << "    add rsp, " << pop_count * 8 << "\n"; // add to stack pointer (move above to pop off)
+        m_stack_loc -= pop_count;
+
+        // remove variables in m_vars;
+        for (int i = 0; i < pop_count; i++) {
+            m_vars.pop_back();
+        }
+
+        m_scopes.pop_back();
+    }
+
     struct Var {
+        std::string name;
         size_t stack_loc;
     };
 
     const NodeProg m_prog;
     std::stringstream m_output;
     size_t m_stack_loc = 0;
-    std::unordered_map<std::string, Var> m_vars {};
+    std::vector<Var> m_vars {};
+    std::vector<size_t> m_scopes;
 };

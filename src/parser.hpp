@@ -60,6 +60,13 @@ struct NodeExpr {
     std::variant<NodeTerm*, NodeBinExpr*> var;
 };
 
+struct NodeStmt;
+
+struct NodeScope {
+    std::vector<NodeStmt*> stmts;
+};
+
+
 struct NodeStmtExit {
     NodeExpr* expr;
 };
@@ -69,8 +76,13 @@ struct NodeStmtDef {
     NodeExpr* expr;
 };
 
+struct NodeStmtIf {
+    NodeExpr* expr;
+    NodeScope* scope;
+};
+
 struct NodeStmt {
-    std::variant<NodeStmtExit*, NodeStmtDef*> var;
+    std::variant<NodeStmtExit*, NodeStmtDef*, NodeScope*, NodeStmtIf*> var;
 };
 
 struct NodeProg {
@@ -122,6 +134,30 @@ public:
         } else {
             return {};
         }
+    }
+
+    // similar to parse_stmt, this utility function pareses the current scope
+    std::optional<NodeScope*> parse_scope() {
+        if (!try_consume(TokenType::open_curly).has_value()) {
+            // needs open paren to start parsing the scope
+            return {};
+        }
+
+
+        auto scope = m_allocator.alloc<NodeScope>();
+        // while we can parse statements, add them to the scope
+        while (auto stmt = parse_stmt()) {
+            scope->stmts.push_back(stmt.value());
+        }
+
+        // scope should end with a }
+        try_consume(TokenType::close_curly, "Expected `}`");
+
+        // according to grammar scope is a statement so treat it as such
+        auto stmt = m_allocator.alloc<NodeStmt>();
+        stmt->var = scope;
+
+        return scope;
     }
 
     // each production will be a method that returns an optional node described in the grammar
@@ -211,42 +247,6 @@ public:
         }
 
         return expr_lhs;
-
-        if (auto term = parse_term()) {
-            // check if next token is a binary operator
-            if (try_consume(TokenType::plus).has_value()) {
-                // parse left hand side
-                auto bin_expr = m_allocator.alloc<NodeBinExpr>();
-
-                // determine type of binary expression (e.g. addition vs multiplication)
-                auto bin_expr_add = m_allocator.alloc<NodeBinExprAdd>();
-
-                // create left hand side expression and add term to it
-                auto lhs_expr = m_allocator.alloc<NodeExpr>();
-                lhs_expr->var = term.value();
-                bin_expr_add->lhs = lhs_expr; // set left hand side expression to previous (convert from NodeBinExpr to NodeExpr)
-
-
-                // same for the right side
-                if (auto rhs = parse_expr()) {
-                    bin_expr_add->rhs = rhs.value();
-                    bin_expr->var = bin_expr_add;
-                    auto expr = m_allocator.alloc<NodeExpr>();
-                    expr->var = bin_expr;
-                    return expr; // add binary expression to full expression with left side
-                } else {
-                    std::cerr << "Expected Expression" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-            } else {
-                // if the expression is not a binary expression, just treat it as an ident or int lit
-                auto expr = m_allocator.alloc<NodeExpr>();
-                expr->var = term.value();
-                return expr;
-            }
-        } else {
-            return {};
-        }
     }
 
     std::optional<NodeStmt*> parse_stmt()  {
@@ -296,6 +296,43 @@ public:
                 // same process as above
                 auto stmt = m_allocator.alloc<NodeStmt>();
                 stmt->var = stmt_def;
+                return stmt;
+            } else if (peak().has_value() && peak().value().type == TokenType::open_curly) {
+                if (auto scope = parse_scope()) {
+                    // according to grammar scope is a statement so treat it as such
+                    auto stmt = m_allocator.alloc<NodeStmt>();
+                    stmt->var = scope.value();
+                    return stmt;
+                } else {
+                    std::cerr << "Invalid Scope" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+
+            } else if (auto if_ = try_consume(TokenType::if_)) {
+                try_consume(TokenType::open_paren, "Expected `(`"); // get the open paren
+                // get the expression in the if statement
+                auto stmt_if = m_allocator.alloc<NodeStmtIf>();
+
+                if (auto expr = parse_expr()) {
+                    stmt_if->expr = expr.value();
+                } else {
+                    std::cerr << "Invalid Expression" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+
+                try_consume(TokenType::close_paren, "Expected `)`"); // get the close paren (completes the statement)
+
+                // parse the scope (described in the grammar)
+                if (auto scope = parse_scope()) {
+                    stmt_if->scope = scope.value();
+                } else {
+                    std::cerr << "Invalid (Expected) Scope" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+
+                // allocate a node statement for the If to be stored in (up the production tree)
+                auto stmt = m_allocator.alloc<NodeStmt>();
+                stmt->var = stmt_if;
                 return stmt;
             } else {
                 return {};
