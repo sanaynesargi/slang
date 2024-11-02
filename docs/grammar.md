@@ -7,10 +7,11 @@ $$
 \text{exit}([\text{Expr}]); \\
     \text{def}\space\text{ident} =
     [\text{Expr}]; \\
-    \text{if} ([\text{Expr}]) \\
-    \{[\text{Stmt}^*]\} \\
+    \text{if} ([\text{Expr}])[\text{Scope}] \\
+    [\text{Scope}] \\
 \end{cases}
 \\
+\text{[Scope]} &\to \{[\text{Stmt}]^*\} \\
 [\text{Expr}] &\to
 \begin{cases}
     \text{[Term]} \\

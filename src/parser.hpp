@@ -220,14 +220,14 @@ public:
                 mult->lhs = expr_lhs2;
                 mult->rhs = expr_rhs.value();
                 expr->var = mult;
-            } else if (op.type == TokenType::sub) {
+            } else if (op.type == TokenType::minus) {
                 auto sub = m_allocator.alloc<NodeBinExprSub>();
                 expr_lhs2->var = expr_lhs->var;
                 // then use the created expression in the main expr
                 sub->lhs = expr_lhs2;
                 sub->rhs = expr_rhs.value();
                 expr->var = sub;
-            } else if (op.type == TokenType::div) {
+            } else if (op.type == TokenType::fslash) {
                 // same process as above
                 auto div = m_allocator.alloc<NodeBinExprDiv>();
                 expr_lhs2->var = expr_lhs->var;

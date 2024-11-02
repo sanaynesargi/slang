@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <cstdio>
 
 // class for code generation to take parse tree and convert to asm
 // replaces tokens_to_asm
@@ -64,6 +65,7 @@ public:
 
         struct BinExprVisitor {
             Generator* gen;
+
             void operator()(const NodeBinExprSub* sub) const {
                 // push expressions for lhs and rhs to the top of the stack
                 gen->gen_expr(sub->rhs);
@@ -132,6 +134,17 @@ public:
         std::visit(visitor, expr->var);
     }
 
+    // generate scope
+    void gen_scope(const NodeScope* scope) {
+        begin_scope();
+
+        for (const NodeStmt* stmt : scope->stmts) {
+            gen_stmt(stmt);
+        }
+
+        end_scope();
+    }
+
     // eventually there will be a method to generate code for each node
     void gen_stmt(const NodeStmt* stmt) {
         // match operator for type -> depending on the type the corresponding function will be called
@@ -162,17 +175,19 @@ public:
                 gen->gen_expr(stmt_def->expr); // push expression value to the top of the stack
             }
             void operator()(const NodeScope* scope) const {
-                gen->begin_scope();
-
-                for (const NodeStmt* stmt : scope->stmts) {
-                    gen->gen_stmt(stmt);
-                }
-
-                gen->end_scope();
+                gen->gen_scope(scope);
             }
             void operator()(const NodeStmtIf* stmt_if) const {
                 // handle if statement
-                assert(false && "Not Implemented");
+                gen->gen_expr(stmt_if->expr); // pushes result of expression to top of the stack
+                gen->pop("rax"); // result of expression in rax
+
+                std::string label = gen->create_label();
+
+                gen->m_output << "    test rax, rax\n"; // perform =0 test
+                gen->m_output << "    jz " << label << "\n"; // create label
+                gen->gen_scope(stmt_if->scope); // generate scope with if
+                gen->m_output << label << ":\n"; // create assembly label
             }
         };
 
@@ -228,6 +243,12 @@ private:
         m_scopes.pop_back();
     }
 
+    std::string create_label() {
+        std::stringstream ss;
+        ss << "label" << m_label_count++;
+        return ss.str();
+    }
+
     struct Var {
         std::string name;
         size_t stack_loc;
@@ -238,4 +259,5 @@ private:
     size_t m_stack_loc = 0;
     std::vector<Var> m_vars {};
     std::vector<size_t> m_scopes;
+    int m_label_count = 0;
 };
