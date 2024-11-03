@@ -91,6 +91,37 @@ public:
 
                 tokens.push_back({.type = TokenType::int_lit, .value = buf});
                 buf.clear();
+            } else if (peak().value() == '#') {
+                // single line comment
+
+                consume(); // consume #
+
+                while (peak().has_value() && peak().value() != '\n') {
+                    consume(); // consume all characters in the comment
+                }
+            } else if (peak().value() == '/' && peak(1).value() == '*') {
+                // multiple line comment
+
+                consume(); // consume /
+                consume(); // consume *
+
+                while (peak().has_value()) {
+                    if (peak().value() == '*' && peak(1).has_value() && peak(1).value() == '/') {
+                        break;
+                    } else {
+                        consume(); // consume all characters in the comment
+                    }
+                }
+
+                // this approach allows for commenting of rest of file
+                if (peak().has_value()) {
+                    consume(); // consume *
+                }
+
+                if (peak().has_value()) {
+                    consume() // consume /
+                }
+
             } else if (peak().value() == '(') {
                 consume();
                 tokens.push_back({.type = TokenType::open_paren});
