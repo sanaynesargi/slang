@@ -73,14 +73,32 @@ struct NodeStmtExit {
 
 struct NodeStmtDef {
     Token ident;
-    NodeExpr* expr;
+    NodeExpr* expr{};
+};
+
+struct NodeIfPred;
+
+struct NodeIfPredElif {
+    NodeExpr* expr{};
+    NodeScope* scope{};
+    std::optional<NodeIfPred*> pred;
+};
+
+struct NodeIfPredElse {
+    NodeScope* scope;
+};
+
+struct NodeIfPred {
+    std::variant<NodeIfPredElif*, NodeIfPredElse*> var;
 };
 
 struct NodeStmtIf {
     NodeExpr* expr;
     NodeScope* scope;
+    std::optional<NodeIfPred*> pred;
 };
 
+// TODO: use using instead of struct
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtDef*, NodeScope*, NodeStmtIf*> var;
 };
@@ -158,6 +176,59 @@ public:
         stmt->var = scope;
 
         return scope;
+    }
+
+    // parse the optional if predicate (elif or else)
+    std::optional<NodeIfPred*> parse_if_pred() {
+        if (try_consume(TokenType::elif)) {
+            try_consume(TokenType::open_paren, "Expected `(`"); // expect an open paren
+
+            auto elif = m_allocator.alloc<NodeIfPredElif>();
+
+            if (auto expr = parse_expr()) {
+                elif->expr = expr.value(); // consume expression elif (expr here)
+            } else {
+                std::cerr << "Expected Expression" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            try_consume(TokenType::close_paren, "Expected `)`"); // consume close paren
+
+            // parse the scope
+            if (auto scope = parse_scope()) {
+                elif->scope = scope.value();
+            } else {
+                std::cerr << "Expected Scope" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            // optionally continue with other elifs
+            elif->pred = parse_if_pred(); // becomes recursive according to grammar
+
+            auto pred = m_allocator.alloc<NodeIfPred>();
+            pred->var = elif;
+
+            return pred;
+        }
+
+        // handle else in similar way (no open or close parens)
+        if (try_consume(TokenType::else_)) {
+            auto else_ = m_allocator.alloc<NodeIfPredElse>();
+
+            // look for the scope
+            if (auto scope = parse_scope()) {
+                else_->scope = scope.value();
+            } else {
+                std::cerr << "Expected Scope" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            auto pred = m_allocator.alloc<NodeIfPred>();
+            pred->var = else_;
+            return pred;
+        }
+
+        return {};
     }
 
     // each production will be a method that returns an optional node described in the grammar

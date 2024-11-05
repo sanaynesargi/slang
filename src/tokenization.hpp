@@ -20,6 +20,8 @@ enum class TokenType {
     open_curly,
     close_curly,
     if_,
+    elif,
+    else_,
 };
 
 // create token definition
@@ -77,6 +79,12 @@ public:
                 } else if (buf == "if") {
                     tokens.push_back({.type = TokenType::if_});
                     buf.clear();
+                } else if (buf == "elif") {
+                    tokens.push_back({.type = TokenType::elif});
+                    buf.clear();
+                } else if (buf == "elif") {
+                    tokens.push_back({.type = TokenType::else_});
+                    buf.clear();
                 } else {
                     // instead of err, if not keyword -> create identifier
                    tokens.push_back({.type = TokenType::ident, .value = buf});
@@ -119,7 +127,7 @@ public:
                 }
 
                 if (peak().has_value()) {
-                    consume() // consume /
+                    consume(); // consume /
                 }
 
             } else if (peak().value() == '(') {
