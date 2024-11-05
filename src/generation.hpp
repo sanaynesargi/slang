@@ -162,7 +162,7 @@ public:
                 gen->m_output << "    jz " << label << "\n"; // create label
                 gen->gen_scope(elif->scope); // generate scope with if
 
-                gen->m_output << "   jmp" << end_label;
+                gen->m_output << "    jmp " << end_label << "\n";
 
                 // if chained elif exists keep passing the end label and create the new elif
                 if (elif->pred.has_value()) {

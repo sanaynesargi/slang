@@ -1,9 +1,9 @@
-def x = 12;
+def x = 1;
 
 # first
-if (x - ) {
+if (x - 1) {
     exit(1);
-} elif (x) {
+} elif (x - 1) {
     exit(2);
 } else {
     exit(3);

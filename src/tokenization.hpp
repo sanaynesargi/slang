@@ -82,7 +82,7 @@ public:
                 } else if (buf == "elif") {
                     tokens.push_back({.type = TokenType::elif});
                     buf.clear();
-                } else if (buf == "elif") {
+                } else if (buf == "else") {
                     tokens.push_back({.type = TokenType::else_});
                     buf.clear();
                 } else {

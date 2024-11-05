@@ -401,6 +401,8 @@ public:
                     exit(EXIT_FAILURE);
                 }
 
+                stmt_if->pred = parse_if_pred();
+
                 // allocate a node statement for the If to be stored in (up the production tree)
                 auto stmt = m_allocator.alloc<NodeStmt>();
                 stmt->var = stmt_if;
